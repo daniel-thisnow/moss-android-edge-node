@@ -88,14 +88,17 @@ async function getAdmin() {
     defaultTimeout: 30000,
     wsClientOptions: WS_OPTS,
   });
-  // Attach app interface once if not already done
+  // Attach app interface once — check existing interfaces first to avoid IPv6 bind error
   if (!_appInterfaceAttached) {
     try {
-      await ws.attachAppInterface({ port: APP_PORT, allowed_origins: '*', installed_app_id: null });
+      const ifaces = await ws.listAppInterfaces();
+      const alreadyBound = ifaces.some(i => i.port === APP_PORT);
+      if (!alreadyBound) {
+        await ws.attachAppInterface({ port: APP_PORT, allowed_origins: '*', installed_app_id: null });
+      }
       _appInterfaceAttached = true;
     } catch (e) {
-      // Already attached or port in use — assume it's there
-      _appInterfaceAttached = true;
+      _appInterfaceAttached = true; // assume it's there
     }
   }
   return ws;
@@ -398,17 +401,20 @@ async function apiGetStorage() {
 
 // ── Log tail ─────────────────────────────────────────────────
 
+// Strip ANSI escape codes from log lines
+const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '').replace(/\[[\d;]*m/g, '');
+
 function getLogTail(n = 50) {
   if (!existsSync(LOG)) return [];
   try {
-    return readFileSync(LOG, 'utf8').split('\n').filter(Boolean).slice(-n);
+    return readFileSync(LOG, 'utf8').split('\n').filter(Boolean).slice(-n).map(stripAnsi);
   } catch { return []; }
 }
 
 function getLauncherLog(n = 30) {
   if (!existsSync(LAUNCHER_LOG)) return [];
   try {
-    return readFileSync(LAUNCHER_LOG, 'utf8').split('\n').filter(Boolean).slice(-n);
+    return readFileSync(LAUNCHER_LOG, 'utf8').split('\n').filter(Boolean).slice(-n).map(stripAnsi);
   } catch { return []; }
 }
 
