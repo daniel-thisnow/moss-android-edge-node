@@ -159,12 +159,16 @@ const CACHE_TTL = 6000;
 async function fetchLiveData() {
   if (Date.now() - cache.ts < CACHE_TTL && cache.data) return cache.data;
 
+  const _settings = loadSettings();
   const result = {
     status: 'offline', agentKey: '?', nickname: null, fields: null,
     appId: null, roles: [], apps: [],
     totalRecords: 0, totalOps: 0, totalPeers: 0, totalIntegrated: 0,
     peerDetails: [], roleStats: [], storageBlobs: [],
     uptime: null, restartCount: 0, errors: [],
+    localIcon: _settings.icon || '🌿',
+    localName: _settings.nickname || '',
+    localDesc: _settings.description || '',
   };
 
   let ws, appWs;
@@ -543,7 +547,7 @@ function dashboardHTML(d) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="10">
-<title>🌿 ${d.nickname || NODE_NAME}</title>
+<title>${d.localIcon} ${d.localName || d.nickname || NODE_NAME}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f172a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;padding:16px;max-width:720px;margin:auto}
@@ -585,7 +589,7 @@ footer{font-size:.62rem;color:#334155;text-align:center;margin-top:16px;padding-
 </style>
 </head>
 <body>
-<h1>🌿 ${d.nickname || NODE_NAME} ${statusTag} <a class="admin-link" href="/admin">Admin Panel</a></h1>
+<h1>${d.localIcon} ${d.localName || d.nickname || NODE_NAME} ${statusTag} <a class="admin-link" href="/admin">Admin Panel</a></h1>
 <div class="sub">${uptimeStr}${d.restartCount > 0 ? ' · ' + d.restartCount + ' restart(s)' : ''} · refreshes every 10s</div>
 
 <div class="grid">
@@ -773,6 +777,7 @@ input:focus{outline:none;border-color:var(--accent)}
   <button data-tab="chain">Chain</button>
   <button data-tab="storage">Storage</button>
   <button data-tab="logs">Logs</button>
+  <button data-tab="profile">Profile</button>
 </nav>
 
 <!-- ── Dashboard ────────────────────────── -->
@@ -862,6 +867,35 @@ input:focus{outline:none;border-color:var(--accent)}
 </div>
 
 <!-- ── Logs ───────────────────────────────── -->
+<div class="tab" id="tab-profile">
+  <div class="card">
+    <h3>Node Identity</h3>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px">
+      <div>
+        <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px">Icon (emoji)</label>
+        <input type="text" id="prof-icon" placeholder="🌿" maxlength="4" style="width:70px;text-align:center;font-size:1.4rem">
+      </div>
+      <div>
+        <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px">Display name</label>
+        <input type="text" id="prof-name" placeholder="My Node" maxlength="64">
+      </div>
+      <div>
+        <label style="font-size:.72rem;color:var(--muted);display:block;margin-bottom:4px">Description</label>
+        <input type="text" id="prof-desc" placeholder="Always-on edge node" maxlength="128">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-blue" onclick="saveLocalProfile()">Save locally</button>
+      <button class="btn btn-green" id="prof-sync-btn" onclick="syncMossProfile()">Sync to Moss</button>
+    </div>
+    <div id="prof-status" style="margin-top:10px;font-size:.72rem;color:var(--muted)"></div>
+  </div>
+  <div class="card" style="margin-top:0">
+    <h3>Current Moss Profile</h3>
+    <div id="prof-moss-current" style="font-size:.78rem;color:var(--muted)">Loading…</div>
+  </div>
+</div>
+
 <div class="tab" id="tab-logs">
   <div class="row" style="margin-bottom:8px">
     <button class="btn btn-ghost btn-sm active" onclick="showLog('conductor',this)">Conductor</button>
@@ -893,6 +927,7 @@ document.querySelectorAll('nav button').forEach(btn => {
     if (btn.dataset.tab === 'peers') loadPeers();
     if (btn.dataset.tab === 'storage') loadStorage();
     if (btn.dataset.tab === 'logs') refreshLogs();
+    if (btn.dataset.tab === 'profile') loadProfile();
   });
 });
 
@@ -1142,6 +1177,52 @@ function copyShare() {
     .catch(() => toast('Copy failed', true));
 }
 
+// ── Profile ──────────────────────────────
+async function loadProfile() {
+  const d = await api('/api/profile');
+  document.getElementById('prof-icon').value = d.local.icon || '🌿';
+  document.getElementById('prof-name').value = d.local.name || '';
+  document.getElementById('prof-desc').value = d.local.desc || '';
+  const moss = document.getElementById('prof-moss-current');
+  if (d.moss) {
+    moss.innerHTML = '<b style="color:var(--text)">' + esc(d.moss.nickname) + '</b>'
+      + (d.moss.fields?.wdockerNode ? '<span style="color:var(--muted)"> &mdash; ' + esc(d.moss.fields.wdockerNode) + '</span>' : '');
+  } else {
+    moss.textContent = 'No Moss profile found';
+  }
+}
+
+async function saveLocalProfile() {
+  const s = document.getElementById('prof-status');
+  s.textContent = 'Saving…';
+  const r = await apiPost('/api/profile/local', {
+    icon: document.getElementById('prof-icon').value,
+    name: document.getElementById('prof-name').value,
+    desc: document.getElementById('prof-desc').value,
+  });
+  s.textContent = r.ok ? 'Saved locally.' : 'Error: ' + r.error;
+  setTimeout(() => s.textContent = '', 3000);
+}
+
+async function syncMossProfile() {
+  const s = document.getElementById('prof-status');
+  const btn = document.getElementById('prof-sync-btn');
+  btn.disabled = true;
+  s.textContent = 'Syncing to Moss…';
+  const r = await apiPost('/api/profile/sync', {
+    nickname: document.getElementById('prof-name').value,
+    desc: document.getElementById('prof-desc').value,
+  });
+  btn.disabled = false;
+  if (r.ok) {
+    s.innerHTML = '<span style="color:var(--green)">Profile synced to Moss.</span>';
+    await loadProfile();
+  } else {
+    s.innerHTML = '<span style="color:var(--red)">Error: ' + esc(r.error || 'unknown') + '</span>';
+  }
+  setTimeout(() => s.textContent = '', 6000);
+}
+
 // ── System toggles ───────────────────────
 async function loadSystem() {
   try {
@@ -1280,6 +1361,57 @@ const server = createServer(async (req, res) => {
       }
       if (path === '/api/app/install') {
         json(await apiInstallApp(body.url, body.appId, body.networkSeed));
+        return;
+      }
+    }
+
+    // ── Profile ───────────────────────────
+    if (path === '/api/profile') {
+      const settings = loadSettings();
+      const d = await fetchLiveData();
+      json({
+        local: { icon: settings.icon || '🌿', name: settings.nickname || '', desc: settings.description || '' },
+        moss: d.nickname ? { nickname: d.nickname, fields: d.fields } : null,
+      });
+      return;
+    }
+    if (req.method === 'POST') {
+      if (path === '/api/profile/local') {
+        const settings = loadSettings();
+        if (body.icon !== undefined) settings.icon = body.icon;
+        if (body.name !== undefined) settings.nickname = body.name;
+        if (body.desc !== undefined) settings.description = body.desc;
+        saveSettings(settings);
+        cache.ts = 0; // invalidate cache so next fetch picks up new name
+        json({ ok: true });
+        return;
+      }
+      if (path === '/api/profile/sync') {
+        try {
+          const admin = await getAdmin();
+          const apps = await admin.listApps({});
+          const app = apps.find(a => a.installed_app_id.startsWith('group#'));
+          if (!app) { json({ ok: false, error: 'No group app installed' }); return; }
+          const appWs = await getAppWs(admin, app.installed_app_id);
+          const settings = loadSettings();
+          const nickname = body.nickname || settings.nickname || 'Android Edge Node';
+          const desc = body.desc || settings.description || 'Holochain edge node';
+          // Try update first, fall back to create
+          let result;
+          try {
+            const existing = await appWs.callZome({ role_name: 'group', zome_name: 'profiles', fn_name: 'get_my_profile', payload: null });
+            const fn_name = existing ? 'update_profile' : 'create_profile';
+            result = await appWs.callZome({ role_name: 'group', zome_name: 'profiles', fn_name, payload: { nickname, fields: { wdockerNode: desc } } });
+          } catch {
+            result = await appWs.callZome({ role_name: 'group', zome_name: 'profiles', fn_name: 'create_profile', payload: { nickname, fields: { wdockerNode: desc } } });
+          }
+          await appWs.client.close();
+          await admin.client.close();
+          cache.ts = 0;
+          json({ ok: true, result: String(result).slice(0, 100) });
+        } catch (e) {
+          json({ ok: false, error: e.message?.slice(0, 200) });
+        }
         return;
       }
     }
