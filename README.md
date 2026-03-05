@@ -96,17 +96,6 @@ Install [Termux:Boot](https://f-droid.org/packages/com.termux.boot/) from F-Droi
 | 4446 | Holochain app websocket |
 | 8889 | Status dashboard |
 
-## Roadmap
-
-| Phase | Goal | Status |
-|-------|------|--------|
-| 0 | Launcher, supervisor, Node.js scripts | ✅ Done |
-| 1 | Native Termux binary (no proot) | ✅ Done |
-| 2 | Cross-compile for `aarch64-linux-android` via GitHub Actions | ✅ Done |
-| 3 | Android APK — Kotlin foreground service wrapping the conductor, WiFi lock, wake lock, persistent notification | 🔜 Next |
-| 4 | Moss Android client — WebView hApp UI runtime, group manager, invite link handling | 📋 Planned |
-| 5 | Port Moss for Android — full native Android Moss app, feature parity with [lightningrodlabs/moss](https://github.com/lightningrodlabs/moss) desktop | 📋 Planned |
-
 ## Notes
 
 - The binary uses `/system/bin/linker64` (Android's native linker) — no `termux-elf-cleaner` needed
