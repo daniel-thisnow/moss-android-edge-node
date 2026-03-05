@@ -910,7 +910,9 @@ Just a phone + Termux.
 
 https://github.com/daniel-thisnow/moss-android-edge-node
 
-Any aarch64 Android phone, API 28+. The Holochain binary is compiled natively for Android via GitHub Actions — same linker as your system apps.</pre>
+Any aarch64 Android phone, API 28+. The Holochain binary is compiled natively for Android via GitHub Actions — same linker as your system apps.
+
+Note: npm install deadlocks inside proot on Android due to a ptrace event ordering bug with Node's libuv thread pool. Fix is in PR #337 → https://github.com/termux/proot/pull/337</pre>
     <button class="btn btn-blue" style="margin-top:12px" onclick="copyShareMsg(this)">Copy to clipboard</button>
   </div>
 </div>

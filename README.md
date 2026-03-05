@@ -25,7 +25,7 @@ An always-on Holochain peer for your Moss group, running directly on Android har
 This didn't start here. It started with a phone and a lot of problem-solving:
 
 1. **Claude Code on Termux** — getting Claude Code running natively on Android required fixing the `/tmp` issue (Android's `/tmp` is root-owned, so we wrap the claude binary with `proot -b $TMPDIR:/tmp`)
-2. **npm on Termux** — redirecting global npm installs to `$HOME/.npm-global` since Termux's `/usr` has restrictions
+2. **npm on Termux** — `npm install` was hanging non-deterministically inside proot-distro. Root cause: proot's ptrace event handler couldn't cope with Node.js's libuv thread pool firing 4 `clone()` syscalls at once. The `PTRACE_EVENT_CLONE` and `SIGSTOP` events arrive out of order, leaving threads permanently stuck. Fix: batch all pending `waitpid()` events and sort CLONE before SIGSTOP before processing. [PR #337 → termux/proot](https://github.com/termux/proot/pull/337)
 3. **Tooling** — git, ripgrep, pnpm, Node.js v25, dev stack
 4. **Ubuntu proot + MCP** — ran an Ubuntu proot environment to host MCP servers (GitHub, Contentful, Cloudinary, Playwright headless)
 5. **Holochain on Ubuntu proot** — proved the concept: Holochain + Moss working on Android hardware, inside Ubuntu proot
