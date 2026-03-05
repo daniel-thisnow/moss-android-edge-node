@@ -1,5 +1,6 @@
 import { createServer } from 'http';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { execSync } from 'child_process';
 import { AdminWebsocket, AppWebsocket, encodeHashToBase64 } from '@holochain/client';
 
 process.on('uncaughtException', (err) => {
@@ -22,6 +23,37 @@ const NODE_NAME = 'Android Edge Node';
 const NODE_DESC = 'Holochain DHT peer running on Android 13 via Termux native (no proot, no Docker).';
 const BOOTSTRAP = 'bootstrap.moss.social';
 const HC_VERSION = '0.6.1-rc.1 (iroh)';
+
+// ── System state ─────────────────────────────────────────────
+const SETTINGS_FILE = (process.env.HOME || '/data/data/com.termux/files/home') + '/holochain-native/etc/settings.json';
+
+function loadSettings() {
+  try { return JSON.parse(readFileSync(SETTINGS_FILE, 'utf8')); } catch { return {}; }
+}
+function saveSettings(s) {
+  writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2));
+}
+
+let _wakeLockActive = false;
+
+function setWakeLock(enabled) {
+  try {
+    execSync(enabled ? 'termux-wake-lock' : 'termux-wake-unlock', { timeout: 5000 });
+    _wakeLockActive = enabled;
+    return true;
+  } catch { return false; }
+}
+
+function getOnWifi() {
+  try {
+    const out = execSync('termux-wifi-connectioninfo', { timeout: 4000 }).toString();
+    const info = JSON.parse(out);
+    return info.supplicant_state === 'COMPLETED';
+  } catch { return null; }
+}
+
+// Initialise wake lock state from launcher (check if process holds one already)
+try { execSync('termux-wake-lock', { timeout: 3000 }); _wakeLockActive = true; } catch {}
 
 const b64 = (h) => {
   if (!h) return '?';
@@ -692,6 +724,12 @@ input:focus{outline:none;border-color:var(--accent)}
 .form-row{display:flex;gap:8px;margin-bottom:8px;align-items:end}
 .form-row > *{flex:1}
 .form-row label{display:block;font-size:.62rem;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:4px}
+.toggle-switch{position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:var(--border);border-radius:24px;transition:.2s}
+.toggle-track:before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+.toggle-switch input:checked + .toggle-track{background:var(--accent)}
+.toggle-switch input:checked + .toggle-track:before{transform:translateX(20px)}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);color:var(--text);padding:10px 18px;border-radius:8px;font-size:.78rem;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;border:1px solid var(--border)}
 .toast.show{opacity:1}
 .toast.err{border-color:var(--red);color:var(--red)}
@@ -752,6 +790,33 @@ input:focus{outline:none;border-color:var(--accent)}
     <h3>Share</h3>
     <pre id="dash-share" style="font-size:.68rem;color:var(--muted);white-space:pre-wrap;line-height:1.6"></pre>
     <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="copyShare()">Copy</button>
+  </div>
+  <div class="card">
+    <h3>System</h3>
+    <div id="sys-wifi-badge" style="margin-bottom:12px;font-size:.72rem;color:var(--muted)">Checking network...</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:.8rem;font-weight:600">Wake lock</div>
+          <div style="font-size:.7rem;color:var(--muted)">Keep network alive on screen-off</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggle-wakelock" onchange="sysToggle('wake-lock',this.checked)">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:.8rem;font-weight:600">WiFi only</div>
+          <div style="font-size:.7rem;color:var(--muted)">Warn when running on mobile data</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="toggle-wifionly" onchange="sysToggle('wifi-only',this.checked)">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+    <div id="sys-status" style="margin-top:10px;font-size:.72rem;color:var(--muted)"></div>
   </div>
 </div>
 
@@ -1077,9 +1142,47 @@ function copyShare() {
     .catch(() => toast('Copy failed', true));
 }
 
+// ── System toggles ───────────────────────
+async function loadSystem() {
+  try {
+    const d = await api('/api/system');
+    document.getElementById('toggle-wakelock').checked = d.wakeLock;
+    document.getElementById('toggle-wifionly').checked = d.wifiOnly;
+    const badge = document.getElementById('sys-wifi-badge');
+    if (d.onWifi === null) {
+      badge.textContent = 'Network: unknown (termux-api may not be installed)';
+    } else if (d.onWifi) {
+      badge.innerHTML = '<span style="color:var(--green)">&#9679; WiFi connected</span>';
+    } else {
+      badge.innerHTML = d.wifiOnly
+        ? '<span style="color:var(--yellow)">&#9888; Mobile data — WiFi only is ON</span>'
+        : '<span style="color:var(--muted)">&#9679; Mobile data</span>';
+    }
+  } catch (e) {
+    document.getElementById('sys-status').textContent = 'Could not load system state: ' + e.message;
+  }
+}
+
+async function sysToggle(key, enabled) {
+  const el = document.getElementById('sys-status');
+  el.textContent = 'Saving...';
+  try {
+    await apiPost('/api/system/' + key, { enabled });
+    el.textContent = '';
+    await loadSystem();
+  } catch (e) {
+    el.textContent = 'Error: ' + e.message;
+    // Revert toggle
+    if (key === 'wake-lock') document.getElementById('toggle-wakelock').checked = !enabled;
+    if (key === 'wifi-only') document.getElementById('toggle-wifionly').checked = !enabled;
+  }
+}
+
 // ── Init ─────────────────────────────────
 refresh();
+loadSystem();
 setInterval(refresh, 10000);
+setInterval(loadSystem, 30000);
 </script>
 </body>
 </html>`;
@@ -1177,6 +1280,27 @@ const server = createServer(async (req, res) => {
       }
       if (path === '/api/app/install') {
         json(await apiInstallApp(body.url, body.appId, body.networkSeed));
+        return;
+      }
+    }
+
+    // ── System controls ──────────────────
+    if (path === '/api/system') {
+      const settings = loadSettings();
+      json({ wakeLock: _wakeLockActive, wifiOnly: !!settings.wifiOnly, onWifi: getOnWifi() });
+      return;
+    }
+    if (req.method === 'POST') {
+      if (path === '/api/system/wake-lock') {
+        const ok = setWakeLock(!!body.enabled);
+        json({ ok, wakeLock: _wakeLockActive });
+        return;
+      }
+      if (path === '/api/system/wifi-only') {
+        const settings = loadSettings();
+        settings.wifiOnly = !!body.enabled;
+        saveSettings(settings);
+        json({ ok: true, wifiOnly: settings.wifiOnly });
         return;
       }
     }
