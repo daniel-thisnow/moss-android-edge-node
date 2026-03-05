@@ -17,11 +17,20 @@ cleanup() {
   log "Shutting down..."
   [ -n "$STATUS_PID" ] && kill "$STATUS_PID" 2>/dev/null
   [ -n "$HC_PID" ] && kill "$HC_PID" 2>/dev/null
+  command -v termux-wake-unlock >/dev/null 2>&1 && termux-wake-unlock
   exit 0
 }
 trap cleanup SIGINT SIGTERM
 
 mkdir -p "$NATIVE_DIR/logs"
+
+# Acquire wake lock to prevent network sleep on screen-off (requires Termux:API)
+if command -v termux-wake-lock >/dev/null 2>&1; then
+  termux-wake-lock
+  log "Wake lock acquired (network will stay alive on screen-off)"
+else
+  log "WARN: termux-wake-lock not found — install Termux:API to prevent network sleep"
+fi
 
 start_status_server() {
   HOLOCHAIN_ADMIN_PORT=$ADMIN_PORT HOLOCHAIN_STATUS_PORT=$STATUS_PORT \
