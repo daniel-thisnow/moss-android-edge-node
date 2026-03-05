@@ -33,6 +33,19 @@ This didn't start here. It started with a phone and a lot of problem-solving:
 
 The Ubuntu proot proved it worked. The native build was the upgrade.
 
+## Binaries
+
+Pre-built for `aarch64-linux-android` (Android NDK r25b, API 28):
+
+| Binary | Download |
+|--------|----------|
+| `holochain` v0.6.1-rc.1 | [download](https://github.com/daniel-thisnow/holochain-android/releases/download/holochain-0.6.1-rc.1/holochain) |
+| `lair-keystore` | [download](https://github.com/daniel-thisnow/holochain-android/releases/download/holochain-0.6.1-rc.1/lair-keystore) |
+
+Release page: [holochain-android/releases/tag/holochain-0.6.1-rc.1](https://github.com/daniel-thisnow/holochain-android/releases/tag/holochain-0.6.1-rc.1)
+
+Built via GitHub Actions — source and workflow at [holochain-android](https://github.com/daniel-thisnow/holochain-android).
+
 ## Stack
 
 - **Device**: Android 13, any aarch64 phone
