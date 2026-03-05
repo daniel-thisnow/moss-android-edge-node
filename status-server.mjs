@@ -778,6 +778,7 @@ input:focus{outline:none;border-color:var(--accent)}
   <button data-tab="storage">Storage</button>
   <button data-tab="logs">Logs</button>
   <button data-tab="profile">Profile</button>
+  <button data-tab="share">Share</button>
 </nav>
 
 <!-- ── Dashboard ────────────────────────── -->
@@ -893,6 +894,24 @@ input:focus{outline:none;border-color:var(--accent)}
   <div class="card" style="margin-top:0">
     <h3>Current Moss Profile</h3>
     <div id="prof-moss-current" style="font-size:.78rem;color:var(--muted)">Loading…</div>
+  </div>
+</div>
+
+<div class="tab" id="tab-share">
+  <div class="card">
+    <h3>Share this project</h3>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Copy and paste to your Moss group or anywhere.</p>
+    <pre id="share-msg" style="font-size:.78rem;color:var(--text);white-space:pre-wrap;line-height:1.7;background:var(--bg);border-radius:8px;padding:14px;border:1px solid var(--border)">Running a native Holochain edge node on Android — no laptop, no Docker, no proot.
+
+Just a phone + Termux.
+
+  pkg install nodejs git curl netcat-openbsd
+  bash &lt;(curl -fsSL https://raw.githubusercontent.com/daniel-thisnow/moss-android-edge-node/main/install.sh)
+
+https://github.com/daniel-thisnow/moss-android-edge-node
+
+Any aarch64 Android phone, API 28+. The Holochain binary is compiled natively for Android via GitHub Actions — same linker as your system apps.</pre>
+    <button class="btn btn-blue" style="margin-top:12px" onclick="copyShareMsg(this)">Copy to clipboard</button>
   </div>
 </div>
 
@@ -1175,6 +1194,17 @@ function copyShare() {
   navigator.clipboard.writeText(document.getElementById('dash-share').textContent)
     .then(() => toast('Copied!'))
     .catch(() => toast('Copy failed', true));
+}
+
+// ── Share ────────────────────────────────
+function copyShareMsg(btn) {
+  const raw = document.getElementById('share-msg').textContent;
+  navigator.clipboard.writeText(raw).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('btn-green');
+    btn.classList.remove('btn-blue');
+    setTimeout(() => { btn.textContent = 'Copy to clipboard'; btn.classList.add('btn-blue'); btn.classList.remove('btn-green'); }, 2500);
+  }).catch(() => toast('Copy failed', true));
 }
 
 // ── Profile ──────────────────────────────
