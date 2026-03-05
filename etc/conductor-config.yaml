@@ -1,0 +1,24 @@
+# Conductor configuration — native Android (Termux)
+
+admin_interfaces:
+- driver:
+    type: websocket
+    port: 4445
+    allowed_origins: '*'
+
+network:
+  bootstrap_url: "https://bootstrap.moss.social"
+  signal_url: "wss://bootstrap.moss.social"
+  relay_url: "https://use1-1.relay.n0.iroh-canary.iroh.link./"
+  enable_mdns: false
+  enable_relaying: true
+
+data_root_path: "/data/data/com.termux/files/home/holochain-native/data"
+
+keystore:
+  type: lair_server_in_proc
+  lair_root: "/data/data/com.termux/files/home/holochain-native/data/ks"
+
+advanced:
+  tx5Transport:
+    dangerForceSignalRelay: true

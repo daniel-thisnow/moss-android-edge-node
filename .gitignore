@@ -1,0 +1,22 @@
+# Conductor data (keystore, databases — never commit)
+data/
+
+# Logs
+logs/
+
+# Binaries (downloaded from holochain-android releases)
+bin/
+
+# Downloaded hApp files
+*.happ
+*.webhapp
+
+# Node deps
+node_modules/
+
+# One-time scripts
+set-profile.mjs
+install-group.mjs
+
+# Old status server
+status-server.js
