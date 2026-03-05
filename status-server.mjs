@@ -722,6 +722,7 @@ input:focus{outline:none;border-color:var(--accent)}
 <body>
 <div class="shell">
 <header>
+  <a href="/" style="color:var(--muted);text-decoration:none;font-size:.75rem;font-weight:600;padding:4px 10px;background:var(--surface);border-radius:6px;border:1px solid var(--border)">&larr; Status</a>
   <h1>🌿 Holochain Admin</h1>
   <span class="badge badge-ok" id="hdr-status">...</span>
   <span class="meta" id="hdr-meta"></span>
