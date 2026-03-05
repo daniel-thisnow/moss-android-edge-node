@@ -1344,9 +1344,27 @@ const server = createServer(async (req, res) => {
     }
 
     // ── Write APIs (POST) ────────────────
-    if (req.method === 'POST') {
-      const body = await readBody(req);
+    const body = req.method === 'POST' ? await readBody(req) : {};
 
+    // Profile GET
+    if (path === '/api/profile' && req.method === 'GET') {
+      const settings = loadSettings();
+      const d = await fetchLiveData();
+      json({
+        local: { icon: settings.icon || '🌿', name: settings.nickname || '', desc: settings.description || '' },
+        moss: d.nickname ? { nickname: d.nickname, fields: d.fields } : null,
+      });
+      return;
+    }
+
+    // System GET
+    if (path === '/api/system' && req.method === 'GET') {
+      const settings = loadSettings();
+      json({ wakeLock: _wakeLockActive, wifiOnly: !!settings.wifiOnly, onWifi: getOnWifi() });
+      return;
+    }
+
+    if (req.method === 'POST') {
       if (path === '/api/app/enable') {
         json(await apiEnableApp(body.appId));
         return;
@@ -1363,26 +1381,13 @@ const server = createServer(async (req, res) => {
         json(await apiInstallApp(body.url, body.appId, body.networkSeed));
         return;
       }
-    }
-
-    // ── Profile ───────────────────────────
-    if (path === '/api/profile') {
-      const settings = loadSettings();
-      const d = await fetchLiveData();
-      json({
-        local: { icon: settings.icon || '🌿', name: settings.nickname || '', desc: settings.description || '' },
-        moss: d.nickname ? { nickname: d.nickname, fields: d.fields } : null,
-      });
-      return;
-    }
-    if (req.method === 'POST') {
       if (path === '/api/profile/local') {
         const settings = loadSettings();
         if (body.icon !== undefined) settings.icon = body.icon;
         if (body.name !== undefined) settings.nickname = body.name;
         if (body.desc !== undefined) settings.description = body.desc;
         saveSettings(settings);
-        cache.ts = 0; // invalidate cache so next fetch picks up new name
+        cache.ts = 0;
         json({ ok: true });
         return;
       }
@@ -1396,7 +1401,6 @@ const server = createServer(async (req, res) => {
           const settings = loadSettings();
           const nickname = body.nickname || settings.nickname || 'Android Edge Node';
           const desc = body.desc || settings.description || 'Holochain edge node';
-          // Try update first, fall back to create
           let result;
           try {
             const existing = await appWs.callZome({ role_name: 'group', zome_name: 'profiles', fn_name: 'get_my_profile', payload: null });
@@ -1414,15 +1418,6 @@ const server = createServer(async (req, res) => {
         }
         return;
       }
-    }
-
-    // ── System controls ──────────────────
-    if (path === '/api/system') {
-      const settings = loadSettings();
-      json({ wakeLock: _wakeLockActive, wifiOnly: !!settings.wifiOnly, onWifi: getOnWifi() });
-      return;
-    }
-    if (req.method === 'POST') {
       if (path === '/api/system/wake-lock') {
         const ok = setWakeLock(!!body.enabled);
         json({ ok, wakeLock: _wakeLockActive });
