@@ -20,3 +20,4 @@ install-group.mjs
 
 # Old status server
 status-server.js
+etc/settings.json
